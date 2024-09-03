@@ -1,4 +1,4 @@
-from mainfile import final_df
+from data_arrange import final_df
 from model import create_pyramidal_model
 import pandas as pd
 from sklearn.model_selection import train_test_split, StratifiedKFold
@@ -19,8 +19,8 @@ y_encoded = label_encoder.fit_transform(y)
 y_categorical = to_categorical(y_encoded)
 
 # Parameters
-iterations = 5
-race_categories = [3, 5]
+iterations = 40
+race_categories = [3, 5]  # Race 3 -> independent 1, Race 5 -> independent 2
 
 # Initialize lists to store AUROC results
 auroc_results = {race: [] for race in race_categories}
@@ -40,7 +40,7 @@ for iteration in range(iterations):
         y_test_race = y_test[races_test == race]
 
         # Cross-validation setup
-        skf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         val_scores = []
 
         for train_index, val_index in skf.split(X_train_race, np.argmax(y_train_race, axis=1)):
@@ -49,7 +49,7 @@ for iteration in range(iterations):
 
             model = create_pyramidal_model(input_dim=X_train_race.shape[1], output_dim=y_categorical.shape[1])
 
-            model.fit(X_train_fold, y_train_fold, epochs=50, batch_size=32, verbose=1)
+            model.fit(X_train_fold, y_train_fold, epochs=200, batch_size=32, verbose=1)
             val_scores.append(model.evaluate(X_val_fold, y_val_fold, verbose=0))
 
         print(f'Cross-validation scores for race {race}, iteration {iteration + 1}: {val_scores}')
@@ -63,9 +63,40 @@ for iteration in range(iterations):
         # Store AUROC result
         auroc_results[race].append(roc_auc)
 
-# Calculate and display median and average AUROC for each race across all iterations
-for race in race_categories:
-    avg_auroc = np.mean(auroc_results[race])
-    median_auroc = np.median(auroc_results[race])
-    print(f'Race {race} - Average AUROC over {iterations} iterations: {avg_auroc:.4f}')
-    print(f'Race {race} - Median AUROC over {iterations} iterations: {median_auroc:.4f}')
+# Write the median and average AUROC values to the file
+with open("results_independent.txt", "w") as file:
+    for race in race_categories:
+        avg_auroc = np.mean(auroc_results[race])
+        median_auroc = np.median(auroc_results[race])
+        if race == 3:
+            file.write(f'Independent 1 - Average AUROC over {iterations} iterations: {avg_auroc:.4f}\n')
+            file.write(f'Independent 1 - Median AUROC over {iterations} iterations: {median_auroc:.4f}\n')
+        elif race == 5:
+            file.write(f'Independent 2 - Average AUROC over {iterations} iterations: {avg_auroc:.4f}\n')
+            file.write(f'Independent 2 - Median AUROC over {iterations} iterations: {median_auroc:.4f}\n')
+
+# Plot AUROC for Independent 1 (Race 3)
+plt.figure()
+plt.plot(range(iterations), auroc_results[3], color='blue', lw=2, label='AUROC for Independent 1 (Race 3)')
+plt.axhline(y=np.median(auroc_results[3]), color='blue', linestyle='--', label=f'Median AUROC = {np.median(auroc_results[3]):.2f}')
+plt.axhline(y=np.mean(auroc_results[3]), color='blue', linestyle=':', label=f'Average AUROC = {np.mean(auroc_results[3]):.2f}')
+plt.xlabel('Iteration')
+plt.ylabel('AUROC')
+plt.title('AUROC across Iterations for Independent 1')
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.tight_layout()
+plt.savefig("independent_1.png")
+plt.show()
+
+# Plot AUROC for Independent 2 (Race 5)
+plt.figure()
+plt.plot(range(iterations), auroc_results[5], color='green', lw=2, label='AUROC for Independent 2 (Race 5)')
+plt.axhline(y=np.median(auroc_results[5]), color='green', linestyle='--', label=f'Median AUROC = {np.median(auroc_results[5]):.2f}')
+plt.axhline(y=np.mean(auroc_results[5]), color='green', linestyle=':', label=f'Average AUROC = {np.mean(auroc_results[5]):.2f}')
+plt.xlabel('Iteration')
+plt.ylabel('AUROC')
+plt.title('AUROC across Iterations for Independent 2')
+plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.tight_layout()
+plt.savefig("independent_2.png")
+plt.show()
